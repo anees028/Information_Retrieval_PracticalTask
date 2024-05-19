@@ -1,5 +1,5 @@
 # Contains all functions that deal with stop word removal.
-
+import re
 from document import Document
 
 
@@ -7,12 +7,13 @@ def remove_symbols(text_string: str) -> str:
     """
     Removes all punctuation marks and similar symbols from a given string.
     Occurrences of "'s" are removed as well.
-    :param text:
+    :param text_string:
     :return:
     """
-
-    # TODO: Implement this function. (PR02)
-    raise NotImplementedError('Not implemented yet!')
+    text_string = re.sub(r"[^\w\s']", ' ', text_string)  # Remove all punctuation except apostrophes
+    text_string = re.sub(r"\s+", ' ', text_string)  # Replace multiple spaces with a single space
+    text_string = text_string.replace("'s", '')  # Remove 's
+    return text_string.strip().lower()
 
 
 def is_stop_word(term: str, stop_word_list: list[str]) -> bool:
@@ -22,8 +23,7 @@ def is_stop_word(term: str, stop_word_list: list[str]) -> bool:
     :param term: The term to be checked.
     :return: True if the term is a stop word.
     """
-    # TODO: Implement this function  (PR02)
-    raise NotImplementedError('Not implemented yet!')
+    return term.lower() in stop_word_list
 
 
 def remove_stop_words_from_term_list(term_list: list[str]) -> list[str]:
@@ -34,7 +34,8 @@ def remove_stop_words_from_term_list(term_list: list[str]) -> list[str]:
     """
     # Hint:  Implement the functions remove_symbols() and is_stop_word() first and use them here.
     # TODO: Implement this function. (PR02)
-    raise NotImplementedError('Not implemented yet!')
+    cleaned_terms = [remove_symbols(term) for term in term_list]
+    return [term for term in cleaned_terms if not is_stop_word(term, cleaned_terms)]
 
 
 def filter_collection(collection: list[Document]):
@@ -44,8 +45,10 @@ def filter_collection(collection: list[Document]):
     :param collection: Document collection to process
     """
     # Hint:  Implement remove_stop_words_from_term_list first and use it here.
-    # TODO: Implement this function. (PR02)
-    raise NotImplementedError('To be implemented in PR02')
+    # # TODO: Implement this function. (PR02)
+    # raise NotImplementedError('To be implemented in PR02')
+    for doc in collection:
+        doc.filtered_terms = remove_stop_words_from_term_list(doc.terms)
 
 
 def load_stop_word_list(raw_file_path: str) -> list[str]:
@@ -55,8 +58,12 @@ def load_stop_word_list(raw_file_path: str) -> list[str]:
     :param raw_file_path: Path to the text file that contains the stop words
     :return: List of stop words
     """
-    # TODO: Implement this function. (PR02)
-    raise NotImplementedError('To be implemented in PR02')
+    # # TODO: Implement this function. (PR02)
+    # raise NotImplementedError('To be implemented in PR02')
+    global STOP_WORDS
+    with open(raw_file_path, 'r', encoding='utf-8') as file:
+        STOP_WORDS = [line.strip().lower() for line in file]
+    return STOP_WORDS
 
 
 def create_stop_word_list_by_frequency(collection: list[Document]) -> list[str]:
@@ -66,5 +73,19 @@ def create_stop_word_list_by_frequency(collection: list[Document]) -> list[str]:
     :param collection: Collection to process
     :return: List of stop words
     """
-    # TODO: Implement this function. (PR02)
-    raise NotImplementedError('To be implemented in PR02')
+    # # TODO: Implement this function. (PR02)
+    # raise NotImplementedError('To be implemented in PR02')
+    term_frequency = {}
+    low_thresh: int = 5
+    high_thresh: int = 20
+
+    for doc in collection:
+        for term in doc['terms']:
+            term = term.lower()
+            if term in term_frequency:
+                term_frequency[term] += 1
+            else:
+                term_frequency[term] = 1
+
+    stop_words = [term for term, freq in term_frequency.items() if freq <= low_thresh or freq >= high_thresh]
+    return stop_words

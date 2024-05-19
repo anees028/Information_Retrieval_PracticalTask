@@ -8,7 +8,7 @@ from document import Document
 def extract_collection(source_file_path: str) -> List[Document]:
     """
     Loads a text file (aesopa10.txt) and extracts each of the listed fables/stories from the file.
-    :param source_file_name: File name of the file that contains the fables
+    :param source_file_path: File name of the file that contains the fables
     :return: List of Document objects
     """
     catalog = []  # This dictionary will store the document raw_data.

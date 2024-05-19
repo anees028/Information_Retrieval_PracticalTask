@@ -4,6 +4,7 @@ import json
 from typing import List
 from document import Document
 
+
 def extract_collection(source_file_path: str) -> List[Document]:
     """
     Loads a text file (aesopa10.txt) and extracts each of the listed fables/stories from the file.

@@ -62,7 +62,6 @@ class InformationRetrievalSystem(object):
         self.model = None  # Saves the current IR model in use.
         self.output_k = 5  # Controls how many results should be shown for a query.
 
-
     def main_menu(self):
         """
         Provides the main loop of the CLI menu that the user interacts with.

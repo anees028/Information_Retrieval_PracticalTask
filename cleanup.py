@@ -1,5 +1,6 @@
 # Contains all functions that deal with stop word removal.
 import re
+from collections import Counter
 from document import Document
 
 
@@ -60,10 +61,9 @@ def load_stop_word_list(raw_file_path: str) -> list[str]:
     """
     # # TODO: Implement this function. (PR02)
     # raise NotImplementedError('To be implemented in PR02')
-    global STOP_WORDS
     with open(raw_file_path, 'r', encoding='utf-8') as file:
-        STOP_WORDS = [line.strip().lower() for line in file]
-    return STOP_WORDS
+        stop_words = [line.strip().lower() for line in file]
+    return stop_words
 
 
 def create_stop_word_list_by_frequency(collection: list[Document]) -> list[str]:
@@ -76,16 +76,26 @@ def create_stop_word_list_by_frequency(collection: list[Document]) -> list[str]:
     # # TODO: Implement this function. (PR02)
     # raise NotImplementedError('To be implemented in PR02')
     term_frequency = {}
-    low_thresh: int = 5
-    high_thresh: int = 20
+    low_thresh: float = 0.04
+    high_thresh: float = 0.001
 
+    term_frequency = Counter()
+
+    # Calculate the frequency of each term in the collection
     for doc in collection:
-        for term in doc['terms']:
-            term = term.lower()
-            if term in term_frequency:
-                term_frequency[term] += 1
-            else:
-                term_frequency[term] = 1
+        if doc.raw_text:
+            words = doc.raw_text.split()
+        else:
+            words = []
+        word_freq = Counter(words)
+        term_frequency.update(word_freq)
 
-    stop_words = [term for term, freq in term_frequency.items() if freq <= low_thresh or freq >= high_thresh]
+    # Calculate frequency thresholds based on the entire collection
+    total_words = sum(term_frequency.values())
+    low_freq = low_thresh * total_words
+    high_freq = high_thresh * total_words
+
+    # Identify stop words based on frequency thresholds
+    stop_words = [term for term, freq in term_frequency.items() if freq <= low_freq or freq >= high_freq]
+
     return stop_words

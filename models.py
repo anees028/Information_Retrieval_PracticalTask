@@ -1,7 +1,8 @@
 # Contains all retrieval models.
 
 from abc import ABC, abstractmethod
-from typing import List
+from collections import defaultdict
+from typing import List, Set
 
 from document import Document
 
@@ -73,10 +74,47 @@ class LinearBooleanModel(RetrievalModel):
 class InvertedListBooleanModel(RetrievalModel):
     # TODO: Implement all abstract methods and __init__() in this class. (PR03)
     def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function. (PR3, Task 2)
+        self.inverted_list = {}
+        self.documents = []
 
     def __str__(self):
         return 'Boolean Model (Inverted List)'
+
+    def document_to_representation(self, document: Document) -> list[str]:
+        # Represent a document as a list of terms
+        return document.terms
+
+    def query_to_representation(self, query: str) -> list[str]:
+        # Represent a query as a list of terms
+        return query.split()
+
+    def match(self, document_representation: list[str], query_representation: list[str]) -> bool:
+        # Check if the document representation matches the query representation
+        return all(term in document_representation for term in query_representation)
+
+    def add_document(self, document: Document):
+        self.documents.append(document)
+        doc_id = len(self.documents) - 1
+        for term in self.document_to_representation(document):
+            if term not in self.inverted_list:
+                self.inverted_list[term] = set()
+            self.inverted_list[term].add(doc_id)
+
+    def parse_query(self, query: str) -> list[str]:
+        return self.query_to_representation(query)
+
+    def evaluate_query(self, query_terms: list[str]) -> set:
+        if not query_terms:
+            return set()
+
+        # Start with the set of documents containing the first term
+        result_set = self.inverted_list.get(query_terms[0], set()).copy()
+
+        # Intersect with the sets of documents containing the other terms
+        for term in query_terms[1:]:
+            result_set &= self.inverted_list.get(term, set())
+
+        return result_set
 
 
 class SignatureBasedBooleanModel(RetrievalModel):

@@ -2,11 +2,10 @@
 
 import json
 import re
-from typing import List
 from document import Document
 
 
-def extract_collection(source_file_path: str) -> List[Document]:
+def extract_collection(source_file_path: str) -> list[Document]:
     """
     Loads a text file (aesopa10.txt) and extracts each of the listed fables/stories from the file.
     :param source_file_path: File name of the file that contains the fables

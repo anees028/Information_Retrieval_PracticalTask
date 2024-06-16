@@ -45,8 +45,7 @@ class InformationRetrievalSystem(object):
 
         # Collection of documents, initially empty.
         try:
-            with open(COLLECTION_PATH, 'r') as f:
-                self.collection = json.load(f)
+            self.collection = extraction.load_collection_from_json(COLLECTION_PATH)
         except FileNotFoundError:
             print('No previous collection was found. Creating empty one.')
             self.collection = []

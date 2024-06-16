@@ -177,7 +177,7 @@ class InformationRetrievalSystem(object):
                 print(f'{MODEL_VECTOR} - Vector space model')
                 model_choice = int(input('Enter choice: '))
                 if model_choice == MODEL_BOOL_LIN:
-                    self.model = models.LinearBooleanModel(self.collection)  # Passing the collection.
+                    self.model = models.LinearBooleanModel()  # Passing the collection.
                 elif model_choice == MODEL_BOOL_INV:
                     self.model = models.InvertedListBooleanModel()
                 elif model_choice == MODEL_BOOL_SIG:

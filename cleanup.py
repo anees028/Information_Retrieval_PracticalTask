@@ -76,10 +76,11 @@ def create_stop_word_list_by_frequency(collection: list[Document]) -> list[str]:
     # # TODO: Implement this function. (PR02)
     # raise NotImplementedError('To be implemented in PR02')
     term_frequency = {}
-    low_thresh: float = 0.04
-    high_thresh: float = 0.001
+    low_thresh: float = 0.01
+    high_thresh: float = 0.1
 
     term_frequency = Counter()
+    doc_count = Counter()
 
     # Calculate the frequency of each term in the collection
     for doc in collection:
@@ -89,13 +90,20 @@ def create_stop_word_list_by_frequency(collection: list[Document]) -> list[str]:
             words = []
         word_freq = Counter(words)
         term_frequency.update(word_freq)
+        unique_words = set(words)
+        doc_count.update(unique_words)
 
     # Calculate frequency thresholds based on the entire collection
     total_words = sum(term_frequency.values())
     low_freq = low_thresh * total_words
     high_freq = high_thresh * total_words
+    num_documents = len(collection)
 
     # Identify stop words based on frequency thresholds
-    stop_words = [term for term, freq in term_frequency.items() if freq <= low_freq or freq >= high_freq]
+    # stop_words = [term for term, freq in term_frequency.items() if freq <= low_freq or freq >= high_freq]
+    stop_words = [
+        term for term, freq in term_frequency.items()
+        if freq <= low_freq or freq >= high_freq or doc_count[term] >= num_documents * high_thresh
+    ]
 
     return stop_words

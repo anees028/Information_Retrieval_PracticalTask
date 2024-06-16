@@ -43,17 +43,11 @@ class RetrievalModel(ABC):
 
 class LinearBooleanModel(RetrievalModel):
     # TODO: Implement all abstract methods and __init__() in this class. (PR02)
-    def __init__(self, collection: List[Document]):
-        self.collection = collection
-
-    def __str__(self):
-        return 'Boolean Model (Linear)'
+    def __init__(self):
+        pass
 
     def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
-        if stopword_filtering:
-            return document.filtered_terms
-        else:
-            return document.terms
+        return set(document.terms)
 
     def query_to_representation(self, query: str):
         return query.lower()
@@ -61,14 +55,8 @@ class LinearBooleanModel(RetrievalModel):
     def match(self, document_representation, query_representation) -> float:
         return 1.0 if query_representation in document_representation else 0.0
 
-    def search(self, term: str) -> List[Document]:
-        term = self.query_to_representation(term)
-        matching_documents = []
-        for doc in self.collection:
-            document_rep = self.document_to_representation(doc)
-            if self.match(document_rep, term):
-                matching_documents.append(doc)
-        return matching_documents
+    def __str__(self):
+        return 'Boolean Model (Linear)'
 
 
 class InvertedListBooleanModel(RetrievalModel):

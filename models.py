@@ -2,8 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import List, Set
-
+import re
 from document import Document
 
 
@@ -62,47 +61,65 @@ class LinearBooleanModel(RetrievalModel):
 class InvertedListBooleanModel(RetrievalModel):
     # TODO: Implement all abstract methods and __init__() in this class. (PR03)
     def __init__(self):
-        self.inverted_list = {}
+        self.inverted_index = defaultdict(set)
         self.documents = []
+
+    def document_to_representation(self, document: Document, stop_word_filtering=False, stemming=False):
+        words = document.terms
+        if stemming:
+            words = document.stemmed_terms
+        if stop_word_filtering:
+            words = document.filtered_terms
+        return set(words)
+
+    def query_to_representation(self, query):
+        terms = re.findall(r'\(|\)|\w+|&|\||-', query.lower())
+        return terms
+
+    def match(self, doc_representation, query_tokens) -> float:
+        complete_docs = set(range(len(self.documents)))
+        idx = self.inverted_index
+        relevant_docs = self.evaluate_expression(query_tokens[:], idx, complete_docs)
+        doc_idx = self.documents.index(doc_representation)
+        return 1.0 if doc_idx in relevant_docs else 0.0
+
+    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
+        doc_rep = self.document_to_representation(doc, filter_stopwords, apply_stemming)
+        self.documents.append(doc_rep)
+        doc_idx = len(self.documents) - 1
+        for term in doc_rep:
+            self.inverted_index[term].add(doc_idx)
+
+    def evaluate_expression(self, token_list, idx, complete_docs):
+        evaluation_stack = []
+        while token_list:
+            current_token = token_list.pop(0)
+            if current_token == '(':
+                evaluation_stack.append(self.evaluate_expression(token_list, idx, complete_docs))
+            elif current_token == ')':
+                break
+            elif current_token == '&':
+                evaluation_stack.append('AND')
+            elif current_token == '|':
+                evaluation_stack.append('OR')
+            elif current_token == '-':
+                next_term = token_list.pop(0)
+                evaluation_stack.append(complete_docs - idx.get(next_term, set()))
+            else:
+                evaluation_stack.append(idx.get(current_token, set()))
+
+        expression_result = evaluation_stack.pop(0)
+        while evaluation_stack:
+            operator = evaluation_stack.pop(0)
+            if operator == 'AND':
+                expression_result &= evaluation_stack.pop(0)
+            elif operator == 'OR':
+                expression_result |= evaluation_stack.pop(0)
+
+        return expression_result
 
     def __str__(self):
         return 'Boolean Model (Inverted List)'
-
-    def document_to_representation(self, document: Document) -> list[str]:
-        # Represent a document as a list of terms
-        return document.terms
-
-    def query_to_representation(self, query: str) -> list[str]:
-        # Represent a query as a list of terms
-        return query.split()
-
-    def match(self, document_representation: list[str], query_representation: list[str]) -> bool:
-        # Check if the document representation matches the query representation
-        return all(term in document_representation for term in query_representation)
-
-    def add_document(self, document: Document):
-        self.documents.append(document)
-        doc_id = len(self.documents) - 1
-        for term in self.document_to_representation(document):
-            if term not in self.inverted_list:
-                self.inverted_list[term] = set()
-            self.inverted_list[term].add(doc_id)
-
-    def parse_query(self, query: str) -> list[str]:
-        return self.query_to_representation(query)
-
-    def evaluate_query(self, query_terms: list[str]) -> set:
-        if not query_terms:
-            return set()
-
-        # Start with the set of documents containing the first term
-        result_set = self.inverted_list.get(query_terms[0], set()).copy()
-
-        # Intersect with the sets of documents containing the other terms
-        for term in query_terms[1:]:
-            result_set &= self.inverted_list.get(term, set())
-
-        return result_set
 
 
 class SignatureBasedBooleanModel(RetrievalModel):

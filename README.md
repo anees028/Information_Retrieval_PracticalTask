@@ -1,6 +1,6 @@
 # Information Retrieval Practice Task
 ## Task 1: Document Handling, Stop Words, Basic Boolean Retrieval
-## Task 2: --
+## Task 2: InvertedList Boolean Model & Precision, recall calculation.
 ## Task 3: --
 
 ## *Task 1:*

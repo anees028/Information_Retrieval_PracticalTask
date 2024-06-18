@@ -10,25 +10,8 @@ def get_measure(term: str) -> int:
     :return: Measure value m
     """
     # TODO: Implement this function. (PR03)
-    m = 0
-    vowel_found = False
-
-    for i in range(len(term)):
-        if is_vowel(term[i]):
-            vowel_found = True
-        else:
-            if vowel_found:
-                m += 1
-                vowel_found = False
-
-    return m
-
-
-def is_vowel(letter: str) -> bool:
-    """
-    Check if a letter is a vowel.
-    """
-    return letter in 'aeiou' or (letter == 'y' and len(letter) > 1 and not is_vowel(letter[-2]))
+    form = re.findall(r'[aeiou]+[^aeiou]+', term)
+    return len(form)
 
 
 def condition_v(stem: str) -> bool:
@@ -38,7 +21,7 @@ def condition_v(stem: str) -> bool:
     :return: True if the condition *v* holds
     """
     # TODO: Implement this function. (PR03)
-    return any(is_vowel(char) for char in stem)
+    return bool(re.search(r'[aeiou]', stem))
 
 
 def condition_d(stem: str) -> bool:
@@ -48,7 +31,7 @@ def condition_d(stem: str) -> bool:
     :return: True if the condition *d holds
     """
     # TODO: Implement this function. (PR03)
-    return len(stem) > 1 and stem[-1] == stem[-2] and not is_vowel(stem[-1])
+    return bool(re.search(r'([^aeiou])\1$', stem))
 
 
 def cond_o(stem: str) -> bool:
@@ -59,14 +42,7 @@ def cond_o(stem: str) -> bool:
     :return: True if the condition *o holds
     """
     # TODO: Implement this function. (PR03)
-    if len(stem) < 3:
-        return False
-    return (
-            not is_vowel(stem[-1]) and
-            is_vowel(stem[-2]) and
-            not is_vowel(stem[-3]) and
-            stem[-1] not in 'wxy'
-    )
+    return bool(re.search(r'[^aeiou][aeiou][^aeiouwxY]$', stem))
 
 
 def stem_term(term: str) -> str:
@@ -77,101 +53,140 @@ def stem_term(term: str) -> str:
     """
     # TODO: Implement this function. (PR03)
     # Note: See the provided file "porter.txt" for information on how to implement it!
-    term = term.lower()
-    if len(term) <= 2:
-        return term
+    def replace_suffix(word, suffix, replacement):
+        if word.endswith(suffix):
+            return word[:-len(suffix)] + replacement
+        return word
 
-    # Step 1a
-    if term.endswith('sses'):
-        term = term[:-2]
-    elif term.endswith('ies'):
-        term = term[:-2]
-    elif term.endswith('ss'):
-        term = term
-    elif term.endswith('s'):
-        term = term[:-1]
+    def step_1a(word):
+        if word.endswith('sses'):
+            word = replace_suffix(word, 'sses', 'ss')
+        elif word.endswith('ies'):
+            word = replace_suffix(word, 'ies', 'i')
+        elif word.endswith('ss'):
+            pass
+        elif word.endswith('s'):
+            word = replace_suffix(word, 's', '')
+        return word
 
-    # Step 1b
-    if term.endswith('eed'):
-        if get_measure(term[:-3]) > 0:
-            term = term[:-1]
-    elif term.endswith('ed'):
-        stem = term[:-2]
-        if condition_v(stem):
-            term = step1b_helper(stem)
-    elif term.endswith('ing'):
-        stem = term[:-3]
-        if condition_v(stem):
-            term = step1b_helper(stem)
-
-    # Step 1c
-    if term.endswith('y'):
-        stem = term[:-1]
-        if condition_v(stem):
-            term = stem + 'i'
-
-    # Step 2
-    suffixes = {
-        'ational': 'ate', 'tional': 'tion', 'enci': 'ence', 'anci': 'ance',
-        'izer': 'ize', 'abli': 'able', 'alli': 'al', 'entli': 'ent',
-        'eli': 'e', 'ousli': 'ous', 'ization': 'ize', 'ation': 'ate',
-        'ator': 'ate', 'alism': 'al', 'iveness': 'ive', 'fulness': 'ful',
-        'ousness': 'ous', 'aliti': 'al', 'iviti': 'ive', 'biliti': 'ble',
-    }
-    for suffix, replacement in sorted(suffixes.items(), key=lambda x: -len(x[0])):
-        if term.endswith(suffix):
-            stem = term[:-len(suffix)]
+    def step_1b(word):
+        if word.endswith('eed'):
+            stem = replace_suffix(word, 'eed', '')
             if get_measure(stem) > 0:
-                term = stem + replacement
-                break
+                word = stem + 'ee'
+        elif word.endswith('ed'):
+            stem = replace_suffix(word, 'ed', '')
+            if condition_v(stem):
+                word = stem
+                word = step_1b_2(word)
+        elif word.endswith('ing'):
+            stem = replace_suffix(word, 'ing', '')
+            if condition_v(stem):
+                word = stem
+                word = step_1b_2(word)
+        return word
 
-    # Step 3
-    suffixes = {
-        'icate': 'ic', 'ative': '', 'alize': 'al', 'iciti': 'ic',
-        'ical': 'ic', 'ful': '', 'ness': ''
-    }
-    for suffix, replacement in sorted(suffixes.items(), key=lambda x: -len(x[0])):
-        if term.endswith(suffix):
-            stem = term[:-len(suffix)]
-            if get_measure(stem) > 0:
-                term = stem + replacement
-                break
+    def step_1b_2(word):
+        if word.endswith('at') or word.endswith('bl') or word.endswith('iz'):
+            word = word + 'e'
+        elif condition_d(word) and not re.search(r'(ll|ss|zz)$', word):
+            word = word[:-1]
+        elif get_measure(word) == 1 and cond_o(word):
+            word = word + 'e'
+        return word
 
-    # Step 4
-    suffixes = [
-        'al', 'ance', 'ence', 'er', 'ic', 'able', 'ible', 'ant', 'ement', 'ment', 'ent',
-        'ou', 'ism', 'ate', 'iti', 'ous', 'ive', 'ize'
-    ]
-    for suffix in sorted(suffixes, key=lambda x: -len(x)):
-        if term.endswith(suffix):
-            stem = term[:-len(suffix)]
+    def step_1c(word):
+        if word.endswith('y'):
+            stem = replace_suffix(word, 'y', '')
+            if condition_v(stem):
+                word = stem + 'i'
+        return word
+
+    def step_2(word):
+        suffixes = {
+            'ational': 'ate',
+            'tional': 'tion',
+            'enci': 'ence',
+            'anci': 'ance',
+            'izer': 'ize',
+            'abli': 'able',
+            'alli': 'al',
+            'entli': 'ent',
+            'eli': 'e',
+            'ousli': 'ous',
+            'ization': 'ize',
+            'ation': 'ate',
+            'ator': 'ate',
+            'alism': 'al',
+            'iveness': 'ive',
+            'fulness': 'ful',
+            'ousness': 'ous',
+            'aliti': 'al',
+            'iviti': 'ive',
+            'biliti': 'ble'
+        }
+        for suffix, replacement in suffixes.items():
+            if word.endswith(suffix):
+                stem = replace_suffix(word, suffix, '')
+                if get_measure(stem) > 0:
+                    word = stem + replacement
+                break
+        return word
+
+    def step_3(word):
+        suffixes = {
+            'icate': 'ic',
+            'ative': '',
+            'alize': 'al',
+            'iciti': 'ic',
+            'ical': 'ic',
+            'ful': '',
+            'ness': ''
+        }
+        for suffix, replacement in suffixes.items():
+            if word.endswith(suffix):
+                stem = replace_suffix(word, suffix, '')
+                if get_measure(stem) > 0:
+                    word = stem + replacement
+                break
+        return word
+
+    def step_4(word):
+        suffixes = [
+            'al', 'ance', 'ence', 'er', 'ic', 'able', 'ible', 'ant', 'ement', 'ment',
+            'ent', 'ion', 'ou', 'ism', 'ate', 'iti', 'ous', 'ive', 'ize'
+        ]
+        for suffix in suffixes:
+            if word.endswith(suffix):
+                stem = replace_suffix(word, suffix, '')
+                if get_measure(stem) > 1:
+                    word = stem
+                break
+        return word
+
+    def step_5a(word):
+        if word.endswith('e'):
+            stem = replace_suffix(word, 'e', '')
             if get_measure(stem) > 1:
-                term = stem
-                break
-    if term.endswith('ion'):
-        stem = term[:-3]
-        if get_measure(stem) > 1 and (stem.endswith('s') or stem.endswith('t')):
-            term = stem
+                word = stem
+            elif get_measure(stem) == 1 and not cond_o(stem):
+                word = stem
+        return word
 
-    # Step 5a
-    if term.endswith('e'):
-        stem = term[:-1]
-        if get_measure(stem) > 1 or (get_measure(stem) == 1 and not cond_o(stem)):
-            term = stem
+    def step_5b(word):
+        if word.endswith('l') and get_measure(word) > 1 and condition_d(word):
+            word = word[:-1]
+        return word
 
-    # Step 5b
-    if get_measure(term) > 1 and condition_d(term) and term.endswith('l'):
-        term = term[:-1]
-
-    return term
-
-def step1b_helper(term: str) -> str:
-    if term.endswith(('at', 'bl', 'iz')):
-        return term + 'e'
-    if condition_d(term) and not term.endswith(('l', 's', 'z')):
-        return term[:-1]
-    if get_measure(term) == 1 and cond_o(term):
-        return term + 'e'
+    term = term.lower()
+    term = step_1a(term)
+    term = step_1b(term)
+    term = step_1c(term)
+    term = step_2(term)
+    term = step_3(term)
+    term = step_4(term)
+    term = step_5a(term)
+    term = step_5b(term)
     return term
 
 
@@ -182,8 +197,8 @@ def stem_all_documents(collection: list[Document]):
     :param collection: Document collection to process
     """
     # TODO: Implement this function. (PR03)
-    for doc in collection:
-        doc.stemmed_terms = [stem_term(term) for term in doc.terms]
+    for document in collection:
+        document.stemmed_terms = [stem_term(term) for term in document.terms]
 
 
 def stem_query_terms(query: str) -> str:
@@ -193,6 +208,6 @@ def stem_query_terms(query: str) -> str:
     :return: Query with stemmed terms
     """
     # TODO: Implement this function. (PR03)
-    terms = query.split()
-    stemmed_terms = [stem_term(term) for term in terms]
-    return ' '.join(stemmed_terms)
+    query_terms = query.split()
+    stemmed_query_terms = [stem_term(term) for term in query_terms]
+    return ' '.join(stemmed_query_terms)

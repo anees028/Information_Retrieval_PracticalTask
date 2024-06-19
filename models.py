@@ -1,8 +1,8 @@
 # Contains all retrieval models.
 
 from abc import ABC, abstractmethod
-from typing import List
-
+from collections import defaultdict
+import re
 from document import Document
 
 
@@ -61,7 +61,62 @@ class LinearBooleanModel(RetrievalModel):
 class InvertedListBooleanModel(RetrievalModel):
     # TODO: Implement all abstract methods and __init__() in this class. (PR03)
     def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function. (PR3, Task 2)
+        self.inverted_index = defaultdict(set)
+        self.documents = []
+
+    def document_to_representation(self, document: Document, stop_word_filtering=False, stemming=False):
+        words = document.terms
+        if stemming:
+            words = document.stemmed_terms
+        if stop_word_filtering:
+            words = document.filtered_terms
+        return set(words)
+
+    def query_to_representation(self, query):
+        terms = re.findall(r'\(|\)|\w+|&|\||-', query.lower())
+        return terms
+
+    def match(self, doc_representation, query_tokens) -> float:
+        complete_docs = set(range(len(self.documents)))
+        idx = self.inverted_index
+        relevant_docs = self.evaluate_expression(query_tokens[:], idx, complete_docs)
+        doc_idx = self.documents.index(doc_representation)
+        return 1.0 if doc_idx in relevant_docs else 0.0
+
+    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
+        doc_rep = self.document_to_representation(doc, filter_stopwords, apply_stemming)
+        self.documents.append(doc_rep)
+        doc_idx = len(self.documents) - 1
+        for term in doc_rep:
+            self.inverted_index[term].add(doc_idx)
+
+    def evaluate_expression(self, token_list, idx, complete_docs):
+        evaluation_stack = []
+        while token_list:
+            current_token = token_list.pop(0)
+            if current_token == '(':
+                evaluation_stack.append(self.evaluate_expression(token_list, idx, complete_docs))
+            elif current_token == ')':
+                break
+            elif current_token == '&':
+                evaluation_stack.append('AND')
+            elif current_token == '|':
+                evaluation_stack.append('OR')
+            elif current_token == '-':
+                next_term = token_list.pop(0)
+                evaluation_stack.append(complete_docs - idx.get(next_term, set()))
+            else:
+                evaluation_stack.append(idx.get(current_token, set()))
+
+        expression_result = evaluation_stack.pop(0)
+        while evaluation_stack:
+            operator = evaluation_stack.pop(0)
+            if operator == 'AND':
+                expression_result &= evaluation_stack.pop(0)
+            elif operator == 'OR':
+                expression_result |= evaluation_stack.pop(0)
+
+        return expression_result
 
     def __str__(self):
         return 'Boolean Model (Inverted List)'

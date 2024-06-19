@@ -1,5 +1,5 @@
 # Contains all functions related to the porter stemming algorithm.
-
+import re
 from document import Document
 
 
@@ -10,7 +10,8 @@ def get_measure(term: str) -> int:
     :return: Measure value m
     """
     # TODO: Implement this function. (PR03)
-    raise NotImplementedError('This function was not implemented yet.')
+    form = re.findall(r'[aeiou]+[^aeiou]+', term)
+    return len(form)
 
 
 def condition_v(stem: str) -> bool:
@@ -20,7 +21,7 @@ def condition_v(stem: str) -> bool:
     :return: True if the condition *v* holds
     """
     # TODO: Implement this function. (PR03)
-    raise NotImplementedError('This function was not implemented yet.')
+    return bool(re.search(r'[aeiou]', stem))
 
 
 def condition_d(stem: str) -> bool:
@@ -30,7 +31,7 @@ def condition_d(stem: str) -> bool:
     :return: True if the condition *d holds
     """
     # TODO: Implement this function. (PR03)
-    raise NotImplementedError('This function was not implemented yet.')
+    return bool(re.search(r'([^aeiou])\1$', stem))
 
 
 def cond_o(stem: str) -> bool:
@@ -41,7 +42,7 @@ def cond_o(stem: str) -> bool:
     :return: True if the condition *o holds
     """
     # TODO: Implement this function. (PR03)
-    raise NotImplementedError('This function was not implemented yet.')
+    return bool(re.search(r'[^aeiou][aeiou][^aeiouwxY]$', stem))
 
 
 def stem_term(term: str) -> str:
@@ -52,7 +53,142 @@ def stem_term(term: str) -> str:
     """
     # TODO: Implement this function. (PR03)
     # Note: See the provided file "porter.txt" for information on how to implement it!
-    raise NotImplementedError('This function was not implemented yet.')
+    def replace_suffix(word, suffix, replacement):
+        if word.endswith(suffix):
+            return word[:-len(suffix)] + replacement
+        return word
+
+    def step_1a(word):
+        if word.endswith('sses'):
+            word = replace_suffix(word, 'sses', 'ss')
+        elif word.endswith('ies'):
+            word = replace_suffix(word, 'ies', 'i')
+        elif word.endswith('ss'):
+            pass
+        elif word.endswith('s'):
+            word = replace_suffix(word, 's', '')
+        return word
+
+    def step_1b(word):
+        if word.endswith('eed'):
+            stem = replace_suffix(word, 'eed', '')
+            if get_measure(stem) > 0:
+                word = stem + 'ee'
+        elif word.endswith('ed'):
+            stem = replace_suffix(word, 'ed', '')
+            if condition_v(stem):
+                word = stem
+                word = step_1b_2(word)
+        elif word.endswith('ing'):
+            stem = replace_suffix(word, 'ing', '')
+            if condition_v(stem):
+                word = stem
+                word = step_1b_2(word)
+        return word
+
+    def step_1b_2(word):
+        if word.endswith('at') or word.endswith('bl') or word.endswith('iz'):
+            word = word + 'e'
+        elif condition_d(word) and not re.search(r'(ll|ss|zz)$', word):
+            word = word[:-1]
+        elif get_measure(word) == 1 and cond_o(word):
+            word = word + 'e'
+        return word
+
+    def step_1c(word):
+        if word.endswith('y'):
+            stem = replace_suffix(word, 'y', '')
+            if condition_v(stem):
+                word = stem + 'i'
+        return word
+
+    def step_2(word):
+        suffixes = {
+            'ational': 'ate',
+            'tional': 'tion',
+            'enci': 'ence',
+            'anci': 'ance',
+            'izer': 'ize',
+            'abli': 'able',
+            'alli': 'al',
+            'entli': 'ent',
+            'eli': 'e',
+            'ousli': 'ous',
+            'ization': 'ize',
+            'ation': 'ate',
+            'ator': 'ate',
+            'alism': 'al',
+            'iveness': 'ive',
+            'fulness': 'ful',
+            'ousness': 'ous',
+            'aliti': 'al',
+            'iviti': 'ive',
+            'biliti': 'ble'
+        }
+        for suffix, replacement in suffixes.items():
+            if word.endswith(suffix):
+                stem = replace_suffix(word, suffix, '')
+                if get_measure(stem) > 0:
+                    word = stem + replacement
+                break
+        return word
+
+    def step_3(word):
+        suffixes = {
+            'icate': 'ic',
+            'ative': '',
+            'alize': 'al',
+            'iciti': 'ic',
+            'ical': 'ic',
+            'ful': '',
+            'ness': ''
+        }
+        for suffix, replacement in suffixes.items():
+            if word.endswith(suffix):
+                stem = replace_suffix(word, suffix, '')
+                if get_measure(stem) > 0:
+                    word = stem + replacement
+                break
+        return word
+
+    def step_4(word):
+        suffixes = [
+            'al', 'ance', 'ence', 'er', 'ic', 'able', 'ible', 'ant', 'ement', 'ment',
+            'ent', 'ion', 'ou', 'ism', 'ate', 'iti', 'ous', 'ive', 'ize'
+        ]
+        for suffix in suffixes:
+            if word.endswith(suffix):
+                stem = replace_suffix(word, suffix, '')
+                if get_measure(stem) > 1:
+                    word = stem
+                break
+        return word
+
+    def step_5a(word):
+        if word.endswith('e'):
+            stem = replace_suffix(word, 'e', '')
+            if get_measure(stem) > 1:
+                word = stem
+            elif get_measure(stem) == 1 and not cond_o(stem):
+                word = stem
+        return word
+
+    def step_5b(word):
+        if word.endswith('l') and get_measure(word) > 1 and condition_d(word):
+            word = word[:-1]
+        return word
+
+    term = term.lower()
+    term = step_1a(term)
+    term = step_1b(term)
+    term = step_1c(term)
+    term = step_2(term)
+    term = step_3(term)
+    term = step_4(term)
+    term = step_5a(term)
+    term = step_5b(term)
+    return term
+
 
 def stem_all_documents(collection: list[Document]):
     """
@@ -61,7 +197,8 @@ def stem_all_documents(collection: list[Document]):
     :param collection: Document collection to process
     """
     # TODO: Implement this function. (PR03)
-    raise NotImplementedError('This function was not implemented yet.')
+    for document in collection:
+        document.stemmed_terms = [stem_term(term) for term in document.terms]
 
 
 def stem_query_terms(query: str) -> str:
@@ -71,4 +208,6 @@ def stem_query_terms(query: str) -> str:
     :return: Query with stemmed terms
     """
     # TODO: Implement this function. (PR03)
-    raise NotImplementedError('This function was not implemented yet.')
+    query_terms = query.split()
+    stemmed_query_terms = [stem_term(term) for term in query_terms]
+    return ' '.join(stemmed_query_terms)

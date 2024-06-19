@@ -18,6 +18,7 @@
 
 import json
 import os
+import time
 
 import cleanup
 import extraction
@@ -30,6 +31,7 @@ RAW_DATA_PATH = 'raw_data'
 DATA_PATH = 'data'
 COLLECTION_PATH = os.path.join(DATA_PATH, 'my_collection.json')
 STOPWORD_FILE_PATH = os.path.join(DATA_PATH, 'stopwords.json')
+GROUND_TRUTH_PATH = os.path.join(RAW_DATA_PATH, 'ground_truth.txt')
 
 # Menu choices:
 (CHOICE_LIST, CHOICE_SEARCH, CHOICE_EXTRACT, CHOICE_UPDATE_STOP_WORDS, CHOICE_SET_MODEL, CHOICE_SHOW_DOCUMENT,
@@ -60,6 +62,7 @@ class InformationRetrievalSystem(object):
 
         self.model = None  # Saves the current IR model in use.
         self.output_k = 5  # Controls how many results should be shown for a query.
+        self.ground_truth = self.load_ground_truth(GROUND_TRUTH_PATH)  # Load ground truth data
 
     def main_menu(self):
         """
@@ -106,6 +109,8 @@ class InformationRetrievalSystem(object):
                 if stemming:
                     query = porter.stem_query_terms(query)
 
+                start_time = time.time()  # Start timing
+
                 if isinstance(self.model, models.InvertedListBooleanModel):
                     results = self.inverted_list_search(query, stemming, stop_word_filtering)
                 elif isinstance(self.model, models.VectorSpaceModel):
@@ -115,14 +120,20 @@ class InformationRetrievalSystem(object):
                 else:
                     results = self.basic_query_search(query, stemming, stop_word_filtering)
 
+                end_time = time.time()  # End timing
+                processing_time = (end_time - start_time) * 1000  # Convert to milliseconds
+
                 # Output of results:
                 for (score, document) in results:
                     print(f'{score}: {document}')
 
                 # Output of quality metrics:
+                precision = self.calculate_precision(query, results)
+                recall = self.calculate_recall(query, results)
                 print()
-                print(f'precision: {self.calculate_precision(results)}')
-                print(f'recall: {self.calculate_recall(results)}')
+                print(f'precision: {precision}')
+                print(f'recall: {recall}')
+                print(f'Time taken for query processing: {processing_time:.2f} ms')
 
             elif action_choice == CHOICE_EXTRACT:
                 # Extract document collection from text file.
@@ -239,7 +250,14 @@ class InformationRetrievalSystem(object):
         document
         """
         # TODO: Implement this function (PR03)
-        raise NotImplementedError('To be implemented in PR04')
+        for doc in self.collection:
+            self.model.add_document(doc, stop_word_filtering, stemming)
+        query_representation = self.model.query_to_representation(query)
+        document_representations = [self.model.document_to_representation(d, stop_word_filtering, stemming) for
+                                    d in self.collection]
+        scores = [self.model.match(dr, query_representation) for dr in document_representations]
+        ranked_collection = sorted(zip(scores, self.collection), key=lambda x: x[0], reverse=True)
+        return ranked_collection[:5]
 
     def buckley_lewit_search(self, query: str, stemming: bool, stop_word_filtering: bool) -> list:
         """
@@ -265,13 +283,61 @@ class InformationRetrievalSystem(object):
         # TODO: Implement this function (PR04)
         raise NotImplementedError('To be implemented in PR04')
 
-    def calculate_precision(self, result_list: list[tuple]) -> float:
-        # TODO: Implement this function (PR03)
-        raise NotImplementedError('To be implemented in PR03')
+    def load_ground_truth(self, ground_truth_path: str) -> dict:
+        """
+        Load the ground truth data from a file.
+        :param ground_truth_path: Path to the ground truth file
+        :return: Dictionary with query terms as keys and sets of relevant document IDs as values
+        """
+        ground_truth = {}
+        with open(ground_truth_path, 'r') as file:
+            for line in file:
+                if (line == '\n'):
+                    break
+                parts = line.strip().split(' - ')
+                if len(parts) == 2:
+                    query_term, doc_ids_str = parts
+                    doc_ids = set(map(int, doc_ids_str.split(', ')))
+                    ground_truth[query_term] = doc_ids
+        return ground_truth
 
-    def calculate_recall(self, result_list: list[tuple]) -> float:
+    def calculate_precision(self, query: str, result_list: list[tuple]) -> float:
         # TODO: Implement this function (PR03)
-        raise NotImplementedError('To be implemented in PR03')
+        query_terms = query.split()
+        relevant_doc_ids = set()
+        for term in query_terms:
+            relevant_doc_ids.update(self.ground_truth.get(term, set()))
+
+        if not relevant_doc_ids:
+            return -1
+
+        retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+
+        if not retrieved_doc_ids:
+            return 0.0
+
+        true_positives = len(retrieved_doc_ids.intersection(relevant_doc_ids))
+        precision = true_positives / len(retrieved_doc_ids)
+        return precision
+
+    def calculate_recall(self, query: str, result_list: list[tuple]) -> float:
+        # TODO: Implement this function (PR03)
+        query_terms = query.split()
+        relevant_doc_ids = set()
+        for term in query_terms:
+            relevant_doc_ids.update(self.ground_truth.get(term, set()))
+
+        if not relevant_doc_ids:
+            return -1
+
+        retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+
+        if not retrieved_doc_ids:
+            return 0.0
+
+        true_positives = len(retrieved_doc_ids.intersection(relevant_doc_ids))
+        recall = true_positives / len(relevant_doc_ids)
+        return recall
 
 
 if __name__ == '__main__':

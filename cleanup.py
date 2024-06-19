@@ -73,37 +73,30 @@ def create_stop_word_list_by_frequency(collection: list[Document]) -> list[str]:
     :param collection: Collection to process
     :return: List of stop words
     """
-    # # TODO: Implement this function. (PR02)
-    # raise NotImplementedError('To be implemented in PR02')
-    term_frequency = {}
-    low_thresh: float = 0.01
-    high_thresh: float = 0.1
+    # TODO: Implement this function. (PR02)
+    high_freq_threshold = 0.04
+    low_freq_threshold = 0.001
 
-    term_frequency = Counter()
-    doc_count = Counter()
+    stop_words_collection = []
 
-    # Calculate the frequency of each term in the collection
-    for doc in collection:
-        if doc.raw_text:
-            words = doc.raw_text.split()
-        else:
-            words = []
-        word_freq = Counter(words)
-        term_frequency.update(word_freq)
-        unique_words = set(words)
-        doc_count.update(unique_words)
+    for document in collection:
+        terms = document.raw_text.split()
+        term_frequencies = Counter(terms)
+        high_freq_limit = high_freq_threshold * len(terms)
+        low_freq_limit = low_freq_threshold * len(terms)
 
-    # Calculate frequency thresholds based on the entire collection
-    total_words = sum(term_frequency.values())
-    low_freq = low_thresh * total_words
-    high_freq = high_thresh * total_words
-    num_documents = len(collection)
+        frequent_terms = []
+        infrequent_terms = []
+        for term, frequency in term_frequencies.items():
+            if frequency >= high_freq_limit:
+                frequent_terms.append(term)
+            elif frequency <= low_freq_limit:
+                infrequent_terms.append(term)
+        
+        stop_words = frequent_terms + infrequent_terms
+        stop_words_collection.append(stop_words)
 
-    # Identify stop words based on frequency thresholds
-    # stop_words = [term for term, freq in term_frequency.items() if freq <= low_freq or freq >= high_freq]
-    stop_words = [
-        term for term, freq in term_frequency.items()
-        if freq <= low_freq or freq >= high_freq or doc_count[term] >= num_documents * high_thresh
-    ]
+    list_stop_words = [word for sublist in stop_words_collection for word in sublist]
 
-    return stop_words
+    # Removing duplicates
+    return list(set(list_stop_words))

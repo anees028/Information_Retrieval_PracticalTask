@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 import re
+import math
 import hashlib
 import random
 import bitarray
@@ -188,10 +189,68 @@ class SignatureBasedBooleanModel(RetrievalModel):
 class VectorSpaceModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
     def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function.
+        self.inverted_index = defaultdict(lambda: defaultdict(float))
+        self.doc_lengths = defaultdict(float)
+        self.documents = []
+
+    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
+        terms = document.terms
+        if stemming:
+            terms = document.stemmed_terms
+        if stopword_filtering:
+            terms = document.filtered_terms
+
+        term_freq = defaultdict(int)
+        for term in terms:
+            term_freq[term] += 1
+
+        doc_length = 0
+        for term, freq in term_freq.items():
+            tf_idf = self._tf_idf(term, freq, document)
+            self.inverted_index[term][document.document_id] = tf_idf
+            doc_length += tf_idf ** 2
+
+        self.doc_lengths[document.document_id] = math.sqrt(doc_length)
+        return term_freq
+
+    def query_to_representation(self, query: str):
+        term_freq = defaultdict(int)
+        terms = query.lower().split()
+        for term in terms:
+            term_freq[term] += 1
+        return term_freq
+
+    def match(self, document_representation, query_representation) -> float:
+        score = 0
+        query_length = 0
+        doc_id = list(document_representation.keys())[0] if document_representation else None
+        if doc_id is None:
+            return 0.0
+
+        for term, qtf in query_representation.items():
+            doc_tf_idf = self.inverted_index[term].get(doc_id, 0)
+            score += doc_tf_idf * qtf
+            query_length += qtf ** 2
+
+        query_length = math.sqrt(query_length)
+        doc_length = self.doc_lengths.get(doc_id, 1)
+
+        return score / (query_length * doc_length)
+
+    def _tf_idf(self, term, term_freq, document):
+        # Compute TF-IDF for a term in a document
+        doc_count = len(self.documents)
+        df = len(self.inverted_index[term])
+        idf = math.log((doc_count + 1) / (1 + df)) + 1
+        tf = term_freq
+        return tf * idf
 
     def __str__(self):
         return 'Vector Space Model'
+
+    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
+        self.documents.append(doc)
+        self.document_to_representation(doc, filter_stopwords, apply_stemming)
 
 
 class FuzzySetModel(RetrievalModel):

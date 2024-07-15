@@ -3,6 +3,9 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 import re
+import hashlib
+import random
+import bitarray
 from document import Document
 
 
@@ -124,11 +127,62 @@ class InvertedListBooleanModel(RetrievalModel):
 
 class SignatureBasedBooleanModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
-    def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function.
+    def __init__(self, F=64, D=4):
+        self.F = F
+        self.D = D
+        self.m = 1000  # Optimal size of the signature vector (you might need to optimize this)
+        self.documents = []
+        self.signatures = []
+        self.hash_functions = [self._create_hash_function() for _ in range(F)]
+
+
+    def _create_hash_function(self):
+        """Create a hash function."""
+        return lambda x, seed=random.randint(0, 2**32): int(hashlib.md5((str(seed) + x).encode()).hexdigest(), 16) % self.m
+
+
+    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
+        if stopword_filtering:
+            words = document.filtered_terms
+        else:
+            words = document.terms
+
+
+        if stemming:
+            words = document.stemmed_terms
+
+
+        signature = bitarray.bitarray(self.m)
+        signature.setall(1)
+
+
+        for term in words:
+            for i, hash_function in enumerate(self.hash_functions):
+                signature[hash_function(term)] = 0
+
+
+        return signature
+
+
+    def query_to_representation(self, query: str):
+        terms = query.lower().split()
+        signature = bitarray.bitarray(self.m)
+        signature.setall(1)
+        for term in terms:
+            for i, hash_function in enumerate(self.hash_functions):
+                signature[hash_function(term)] = 0
+
+        return signature
+
+    def match(self, document_representation, query_representation) -> float:
+        return (document_representation & query_representation).count(0) / self.m
 
     def __str__(self):
         return 'Boolean Model (Signatures)'
+
+    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
+        doc_rep = self.document_to_representation(doc, filter_stopwords, apply_stemming)
+        self.documents.append(doc_rep)
 
 
 class VectorSpaceModel(RetrievalModel):

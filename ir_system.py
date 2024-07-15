@@ -269,7 +269,17 @@ class InformationRetrievalSystem(object):
         document
         """
         # TODO: Implement this function (PR04)
-        raise NotImplementedError('To be implemented in PR04')
+        for doc in self.collection:
+            self.model.add_document(doc, stop_word_filtering, stemming)
+
+        query_representation = self.model.query_to_representation(query)
+        document_representations = [self.model.document_to_representation(d, stop_word_filtering, stemming)
+                                    for d in self.collection]
+
+        # Calculate scores
+        scores = [self.model.match(dr, query_representation) for dr in document_representations]
+        ranked_collection = sorted(zip(scores, self.collection), key=lambda x: x[0], reverse=True)
+        return ranked_collection[:5]
 
     def signature_search(self, query: str, stemming: bool, stop_word_filtering: bool) -> list:
         """
@@ -281,7 +291,22 @@ class InformationRetrievalSystem(object):
         document
         """
         # TODO: Implement this function (PR04)
-        raise NotImplementedError('To be implemented in PR04')
+        for doc in self.collection:
+            self.model.add_document(doc, stop_word_filtering, stemming)
+
+            # Get query representation
+        query_representation = self.model.query_to_representation(query)
+
+        # Calculate scores
+        scores = []
+        for doc in self.collection:
+            doc_representation = self.model.document_to_representation(doc, stop_word_filtering, stemming)
+            score = self.model.match(doc_representation, query_representation)
+            scores.append((score, doc))
+
+        # Sort and return top results
+        ranked_collection = sorted(scores, key=lambda x: x[0], reverse=True)
+        return ranked_collection[:self.output_k]
 
     def load_ground_truth(self, ground_truth_path: str) -> dict:
         """

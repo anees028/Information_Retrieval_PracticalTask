@@ -3,6 +3,10 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 import re
+import math
+import hashlib
+import random
+import bitarray
 from document import Document
 
 
@@ -124,26 +128,149 @@ class InvertedListBooleanModel(RetrievalModel):
 
 class SignatureBasedBooleanModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
-    def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function.
+    def __init__(self, F=64, D=4):
+        self.F = F
+        self.D = D
+        self.m = 1000  # Optimal size of the signature vector (you might need to optimize this)
+        self.documents = []
+        self.signatures = []
+        self.hash_functions = [self._create_hash_function() for _ in range(F)]
+
+    def _create_hash_function(self):
+        """Create a hash function."""
+        return lambda x, seed=random.randint(0, 2 ** 32): int(hashlib.md5((str(seed) + x).encode()).hexdigest(),
+                                                              16) % self.m
+
+    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
+        if stopword_filtering:
+            words = document.filtered_terms
+        else:
+            words = document.terms
+
+        if stemming:
+            words = document.stemmed_terms
+
+        signature = bitarray.bitarray(self.m)
+        signature.setall(1)
+
+        for term in words:
+            for i, hash_function in enumerate(self.hash_functions):
+                signature[hash_function(term)] = 0
+
+        return signature
+
+    def query_to_representation(self, query: str):
+        terms = query.lower().split()
+        signature = bitarray.bitarray(self.m)
+        signature.setall(1)
+        for term in terms:
+            for i, hash_function in enumerate(self.hash_functions):
+                signature[hash_function(term)] = 0
+
+        return signature
+
+    def match(self, document_representation, query_representation) -> float:
+        return (document_representation & query_representation).count(0) / self.m
 
     def __str__(self):
         return 'Boolean Model (Signatures)'
+
+    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
+        doc_rep = self.document_to_representation(doc, filter_stopwords, apply_stemming)
+        self.documents.append(doc_rep)
 
 
 class VectorSpaceModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
     def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function.
+        self.inverted_index = defaultdict(lambda: defaultdict(float))
+        self.doc_lengths = defaultdict(float)
+        self.documents = []
+
+    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
+        terms = document.terms
+        if stemming:
+            terms = document.stemmed_terms
+        if stopword_filtering:
+            terms = document.filtered_terms
+
+        term_freq = defaultdict(int)
+        for term in terms:
+            term_freq[term] += 1
+
+        doc_length = 0
+        for term, freq in term_freq.items():
+            tf_idf = self._tf_idf(term, freq, document)
+            self.inverted_index[term][document.document_id] = tf_idf
+            doc_length += tf_idf ** 2
+
+        self.doc_lengths[document.document_id] = math.sqrt(doc_length)
+        return term_freq
+
+    def query_to_representation(self, query: str):
+        term_freq = defaultdict(int)
+        terms = query.lower().split()
+        for term in terms:
+            term_freq[term] += 1
+        return term_freq
+
+    def match(self, document_representation, query_representation) -> float:
+        score = 0
+        query_length = 0
+        doc_id = list(document_representation.keys())[0] if document_representation else None
+        if doc_id is None:
+            return 0.0
+
+        for term, qtf in query_representation.items():
+            doc_tf_idf = self.inverted_index[term].get(doc_id, 0)
+            score += doc_tf_idf * qtf
+            query_length += qtf ** 2
+
+        query_length = math.sqrt(query_length)
+        doc_length = self.doc_lengths.get(doc_id, 1)
+
+        return score / (query_length * doc_length)
+
+    def _tf_idf(self, term, term_freq, document):
+        # Compute TF-IDF for a term in a document
+        doc_count = len(self.documents)
+        df = len(self.inverted_index[term])
+        idf = math.log((doc_count + 1) / (1 + df)) + 1
+        tf = term_freq
+        return tf * idf
 
     def __str__(self):
         return 'Vector Space Model'
+
+    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
+        self.documents.append(doc)
+        self.document_to_representation(doc, filter_stopwords, apply_stemming)
 
 
 class FuzzySetModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
     def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function.
+        self.documents = []
+
+    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
+        if stopword_filtering:
+            words = document.filtered_terms
+        else:
+            words = document.terms
+
+        if stemming:
+            words = document.stemmed_terms
+
+        return set(words)
+
+    def query_to_representation(self, query: str):
+        terms = query.lower().split()
+        return set(terms)
+
+    def match(self, document_representation, query_representation) -> float:
+        intersection = len(document_representation & query_representation)
+        union = len(document_representation | query_representation)
+        return intersection / union if union > 0 else 0.0
 
     def __str__(self):
         return 'Fuzzy Set Model'

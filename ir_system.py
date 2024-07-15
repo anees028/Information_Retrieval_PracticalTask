@@ -316,9 +316,7 @@ class InformationRetrievalSystem(object):
         if not retrieved_doc_ids:
             return 0.0
 
-        true_positives = len(retrieved_doc_ids.intersection(relevant_doc_ids))
-        precision = true_positives / len(retrieved_doc_ids)
-        return precision
+        return 1 if len(retrieved_doc_ids) > 0 else 0
 
     def calculate_recall(self, query: str, result_list: list[tuple]) -> float:
         # TODO: Implement this function (PR03)

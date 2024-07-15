@@ -136,11 +136,10 @@ class SignatureBasedBooleanModel(RetrievalModel):
         self.signatures = []
         self.hash_functions = [self._create_hash_function() for _ in range(F)]
 
-
     def _create_hash_function(self):
         """Create a hash function."""
-        return lambda x, seed=random.randint(0, 2**32): int(hashlib.md5((str(seed) + x).encode()).hexdigest(), 16) % self.m
-
+        return lambda x, seed=random.randint(0, 2 ** 32): int(hashlib.md5((str(seed) + x).encode()).hexdigest(),
+                                                              16) % self.m
 
     def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
         if stopword_filtering:
@@ -148,22 +147,17 @@ class SignatureBasedBooleanModel(RetrievalModel):
         else:
             words = document.terms
 
-
         if stemming:
             words = document.stemmed_terms
 
-
         signature = bitarray.bitarray(self.m)
         signature.setall(1)
-
 
         for term in words:
             for i, hash_function in enumerate(self.hash_functions):
                 signature[hash_function(term)] = 0
 
-
         return signature
-
 
     def query_to_representation(self, query: str):
         terms = query.lower().split()
@@ -256,7 +250,27 @@ class VectorSpaceModel(RetrievalModel):
 class FuzzySetModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
     def __init__(self):
-        raise NotImplementedError()  # TODO: Remove this line and implement the function.
+        self.documents = []
+
+    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
+        if stopword_filtering:
+            words = document.filtered_terms
+        else:
+            words = document.terms
+
+        if stemming:
+            words = document.stemmed_terms
+
+        return set(words)
+
+    def query_to_representation(self, query: str):
+        terms = query.lower().split()
+        return set(terms)
+
+    def match(self, document_representation, query_representation) -> float:
+        intersection = len(document_representation & query_representation)
+        union = len(document_representation | query_representation)
+        return intersection / union if union > 0 else 0.0
 
     def __str__(self):
         return 'Fuzzy Set Model'

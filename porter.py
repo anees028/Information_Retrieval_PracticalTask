@@ -10,8 +10,10 @@ def get_measure(term: str) -> int:
     :return: Measure value m
     """
     # TODO: Implement this function. (PR03)
-    form = re.findall(r'[aeiou]+[^aeiou]+', term)
-    return len(form)
+    form = re.sub(r'[^aeiou]+', 'C', term)
+    form = re.sub(r'[aeiouy]+', 'V', form)
+    # Count the number of VC sequences
+    return form.count('VC')
 
 
 def condition_v(stem: str) -> bool:
@@ -21,7 +23,7 @@ def condition_v(stem: str) -> bool:
     :return: True if the condition *v* holds
     """
     # TODO: Implement this function. (PR03)
-    return bool(re.search(r'[aeiou]', stem))
+    return bool(re.search(r'[aeiouy]', stem))
 
 
 def condition_d(stem: str) -> bool:
@@ -42,7 +44,7 @@ def cond_o(stem: str) -> bool:
     :return: True if the condition *o holds
     """
     # TODO: Implement this function. (PR03)
-    return bool(re.search(r'[^aeiou][aeiou][^aeiouwxY]$', stem))
+    return bool(re.search(r'[^aeiou][aeiouy][^aeiouwxy]$', stem))
 
 
 def stem_term(term: str) -> str:
@@ -52,7 +54,7 @@ def stem_term(term: str) -> str:
     :return:
     """
     # TODO: Implement this function. (PR03)
-    # Note: See the provided file "porter.txt" for information on how to implement it!
+    term = term.lower()
     def replace_suffix(word, suffix, replacement):
         if word.endswith(suffix):
             return word[:-len(suffix)] + replacement
@@ -60,13 +62,13 @@ def stem_term(term: str) -> str:
 
     def step_1a(word):
         if word.endswith('sses'):
-            word = replace_suffix(word, 'sses', 'ss')
+            return replace_suffix(word, 'sses', 'ss')
         elif word.endswith('ies'):
-            word = replace_suffix(word, 'ies', 'i')
+            return replace_suffix(word, 'ies', 'i')
         elif word.endswith('ss'):
-            pass
+            return word
         elif word.endswith('s'):
-            word = replace_suffix(word, 's', '')
+            return replace_suffix(word, 's', '')
         return word
 
     def step_1b(word):
@@ -88,18 +90,18 @@ def stem_term(term: str) -> str:
 
     def step_1b_2(word):
         if word.endswith('at') or word.endswith('bl') or word.endswith('iz'):
-            word = word + 'e'
+            return word + 'e'
         elif condition_d(word) and not re.search(r'(ll|ss|zz)$', word):
-            word = word[:-1]
+            return word[:-1]
         elif get_measure(word) == 1 and cond_o(word):
-            word = word + 'e'
+            return word + 'e'
         return word
 
     def step_1c(word):
         if word.endswith('y'):
             stem = replace_suffix(word, 'y', '')
             if condition_v(stem):
-                word = stem + 'i'
+                return stem + 'i'
         return word
 
     def step_2(word):
@@ -129,8 +131,7 @@ def stem_term(term: str) -> str:
             if word.endswith(suffix):
                 stem = replace_suffix(word, suffix, '')
                 if get_measure(stem) > 0:
-                    word = stem + replacement
-                break
+                    return stem + replacement
         return word
 
     def step_3(word):
@@ -147,8 +148,7 @@ def stem_term(term: str) -> str:
             if word.endswith(suffix):
                 stem = replace_suffix(word, suffix, '')
                 if get_measure(stem) > 0:
-                    word = stem + replacement
-                break
+                    return stem + replacement
         return word
 
     def step_4(word):
@@ -160,25 +160,21 @@ def stem_term(term: str) -> str:
             if word.endswith(suffix):
                 stem = replace_suffix(word, suffix, '')
                 if get_measure(stem) > 1:
-                    word = stem
-                break
+                    return stem
         return word
 
     def step_5a(word):
         if word.endswith('e'):
             stem = replace_suffix(word, 'e', '')
-            if get_measure(stem) > 1:
-                word = stem
-            elif get_measure(stem) == 1 and not cond_o(stem):
-                word = stem
+            if get_measure(stem) > 1 or (get_measure(stem) == 1 and not cond_o(stem)):
+                return stem
         return word
 
     def step_5b(word):
         if word.endswith('l') and get_measure(word) > 1 and condition_d(word):
-            word = word[:-1]
+            return word[:-1]
         return word
 
-    term = term.lower()
     term = step_1a(term)
     term = step_1b(term)
     term = step_1c(term)

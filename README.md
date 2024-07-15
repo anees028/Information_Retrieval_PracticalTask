@@ -1,7 +1,8 @@
 # Information Retrieval Practice Task
 ## Task 1: Document Handling, Stop Words, Basic Boolean Retrieval
 ## Task 2: InvertedList Boolean Model & Precision, recall calculation.
-## Task 3: --
+## Task 3: Stemming Inverted list evaluation and calculation
+## Task 4: SignatureBased Boolean, Vector Space & Fuzzy Set Model
 
 ## *Task 1:*
 

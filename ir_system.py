@@ -327,25 +327,40 @@ class InformationRetrievalSystem(object):
         return ground_truth
 
     def calculate_precision(self, query: str, result_list: list[tuple]) -> float:
-        # TODO: Implement this function (PR03)
-        query_terms = query.split()
+        # Split and normalize the query
+        query_terms = query.lower().split()
+
+        # Collect relevant document IDs based on the query terms
         relevant_doc_ids = set()
         for term in query_terms:
             relevant_doc_ids.update(self.ground_truth.get(term, set()))
+
+        # Print relevant_doc_ids for debugging
+        print("Relevant Document IDs:", relevant_doc_ids)
 
         if not relevant_doc_ids:
             return -1
 
         retrieved_doc_ids = {doc.document_id for score, doc in result_list}
 
+        # Print retrieved_doc_ids for debugging
+        print("Retrieved Document IDs:", retrieved_doc_ids)
+        
         if not retrieved_doc_ids:
             return 0.0
 
-        return 1 if len(retrieved_doc_ids) > 0 else 0
+        # Calculate precision
+        true_positive = len(relevant_doc_ids & retrieved_doc_ids)
+        precision = true_positive / len(retrieved_doc_ids)
+        
+        return precision
+
+
 
     def calculate_recall(self, query: str, result_list: list[tuple]) -> float:
-        # TODO: Implement this function (PR03)
         query_terms = query.split()
+
+        # Collect relevant document IDs based on the query terms
         relevant_doc_ids = set()
         for term in query_terms:
             relevant_doc_ids.update(self.ground_truth.get(term, set()))
@@ -357,9 +372,10 @@ class InformationRetrievalSystem(object):
 
         if not retrieved_doc_ids:
             return 0.0
-
-        true_positives = len(retrieved_doc_ids.intersection(relevant_doc_ids))
-        recall = true_positives / len(relevant_doc_ids)
+        
+        # Calculate recall
+        true_positive = len(retrieved_doc_ids & relevant_doc_ids)
+        recall = true_positive / len(relevant_doc_ids)
         return recall
 
 

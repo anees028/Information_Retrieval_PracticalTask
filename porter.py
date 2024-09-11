@@ -2,14 +2,13 @@
 import re
 from document import Document
 
-
 def get_measure(term: str) -> int:
     """
     Returns the measure m of a given term [C](VC){m}[V].
     :param term: Given term/word
     :return: Measure value m
     """
-    # TODO: Implement this function. (PR03)
+    # Replacing consonant sequences with 'C' and vowel sequences with 'V'
     form = re.sub(r'[^aeiou]+', 'C', term)
     form = re.sub(r'[aeiouy]+', 'V', form)
     # Count the number of VC sequences
@@ -22,7 +21,6 @@ def condition_v(stem: str) -> bool:
     :param stem: Word stem to check
     :return: True if the condition *v* holds
     """
-    # TODO: Implement this function. (PR03)
     return bool(re.search(r'[aeiouy]', stem))
 
 
@@ -32,7 +30,6 @@ def condition_d(stem: str) -> bool:
     :param stem: Word stem to check
     :return: True if the condition *d holds
     """
-    # TODO: Implement this function. (PR03)
     return bool(re.search(r'([^aeiou])\1$', stem))
 
 
@@ -43,18 +40,17 @@ def cond_o(stem: str) -> bool:
     :param stem: Word stem to check
     :return: True if the condition *o holds
     """
-    # TODO: Implement this function. (PR03)
     return bool(re.search(r'[^aeiou][aeiouy][^aeiouwxy]$', stem))
 
 
 def stem_term(term: str) -> str:
     """
     Stems a given term of the English language using the Porter stemming algorithm.
-    :param term:
-    :return:
+    :param term: The term to be stemmed
+    :return: Stemmed term
     """
-    # TODO: Implement this function. (PR03)
     term = term.lower()
+
     def replace_suffix(word, suffix, replacement):
         if word.endswith(suffix):
             return word[:-len(suffix)] + replacement
@@ -175,6 +171,7 @@ def stem_term(term: str) -> str:
             return word[:-1]
         return word
 
+    # Apply the stemming steps in sequence
     term = step_1a(term)
     term = step_1b(term)
     term = step_1c(term)
@@ -183,6 +180,7 @@ def stem_term(term: str) -> str:
     term = step_4(term)
     term = step_5a(term)
     term = step_5b(term)
+    
     return term
 
 
@@ -192,7 +190,6 @@ def stem_all_documents(collection: list[Document]):
     Warning: The result is NOT saved in the document's term list, but in the extra field stemmed_terms!
     :param collection: Document collection to process
     """
-    # TODO: Implement this function. (PR03)
     for document in collection:
         document.stemmed_terms = [stem_term(term) for term in document.terms]
 
@@ -203,7 +200,6 @@ def stem_query_terms(query: str) -> str:
     :param query: User query, may contain Boolean operators and spaces.
     :return: Query with stemmed terms
     """
-    # TODO: Implement this function. (PR03)
     query_terms = query.split()
     stemmed_query_terms = [stem_term(term) for term in query_terms]
     return ' '.join(stemmed_query_terms)

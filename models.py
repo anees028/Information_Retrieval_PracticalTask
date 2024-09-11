@@ -250,27 +250,7 @@ class VectorSpaceModel(RetrievalModel):
 class FuzzySetModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
     def __init__(self):
-        self.documents = []
-
-    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
-        if stopword_filtering:
-            words = document.filtered_terms
-        else:
-            words = document.terms
-
-        if stemming:
-            words = document.stemmed_terms
-
-        return set(words)
-
-    def query_to_representation(self, query: str):
-        terms = query.lower().split()
-        return set(terms)
-
-    def match(self, document_representation, query_representation) -> float:
-        intersection = len(document_representation & query_representation)
-        union = len(document_representation | query_representation)
-        return intersection / union if union > 0 else 0.0
-
+        raise NotImplementedError() # TODO: Remove this line and implement the function.
+    
     def __str__(self):
         return 'Fuzzy Set Model'

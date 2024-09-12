@@ -175,7 +175,7 @@ class SignatureBasedBooleanModel(RetrievalModel):
         return (document_representation & query_representation).count(0) / self.m
 
     def __str__(self):
-        return 'Boolean Model (Signatures)'
+        return 'Signature-Based Boolean Model'
 
     def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
         doc_rep = self.document_to_representation(doc, filter_stopwords, apply_stemming)
@@ -184,25 +184,23 @@ class SignatureBasedBooleanModel(RetrievalModel):
 
 class VectorSpaceModel(RetrievalModel):
     def __init__(self):
-        self.index = {}
-        self.term_frequence = {}
-        self.document_term_count = {}
         self.total_docs = 82
+        self.term_frequence = {}
+        self.doc_term_count = {}
+        self.index = {}
     
     def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
         
         if stopword_filtering:
             if isinstance(document, Iterable):
-       
                 for d in document:
                     d.terms = remove_stop_words_from_term_list(d.terms)          
- 
 
         if stemming:
             document = porter.stem_all_documents(document)
 
 
-        self.document_term_count = {}
+        self.doc_term_count = {}
 
         for i in document:
             doc_id = i.document_id
@@ -216,20 +214,23 @@ class VectorSpaceModel(RetrievalModel):
         
         return document
 
+    def query_to_representation(self, query: str):
 
+        query_terms = query.split(' ')
+        query_terms = [term.lower() for term in query_terms]
+        term_counts = Counter(query_terms)
+        query_length = len(query_terms)
+        vector = {term: (count / query_length) * self.calculated_idf(term) for term, count in term_counts.items()}
+     
+        return vector
 
     def get_term_frequencey(self,term,doc_id):
 
         doc_term = self.index[term]
-
         tf = 0
-
-   
-
         for i in doc_term:
             if i[0] == doc_id:
                 tf = i[1]
-
 
         return tf 
 
@@ -237,12 +238,10 @@ class VectorSpaceModel(RetrievalModel):
     def get_overall_term_freq(self,term):
         
         tf_overall = 0
-
         if term in self.index.keys():
             tf_overall = len(self.index[term])
            
-            
-
+        
         return tf_overall
 
     def calculated_idf(self,term):
@@ -265,20 +264,10 @@ class VectorSpaceModel(RetrievalModel):
 
         return tf_idf
     
-    def compute_document_vector(self, doc_id):
+    def vector_calculation(self, doc_id):
 
         terms = self.index.keys()
         vector = {term: self.calculate_tfidf(term, doc_id) for term in terms}
-        return vector
-
-    def query_to_representation(self, query: str):
-
-        query_terms = query.split(' ')
-        query_terms = [term.lower() for term in query_terms]
-        term_counts = Counter(query_terms)
-        query_length = len(query_terms)
-        vector = {term: (count / query_length) * self.calculated_idf(term) for term, count in term_counts.items()}
-     
         return vector
     
 
@@ -291,17 +280,13 @@ class VectorSpaceModel(RetrievalModel):
             return 0.0
         return dot_product / (norm1 * norm2)
     
-    def match(self, document_representation, query_representation) -> float:
-        
-        
+    def match(self, document_representation, query_representation) -> float:        
+        # For finding the match of the documents selected.
         document_scores = {}
-
-
-
         for i in document_representation:
             
             doc_id = i.document_id
-            doc_vector = self.compute_document_vector(doc_id)
+            doc_vector = self.vector_calculation(doc_id)
            
             similarity = self.cosine_similarity(query_representation, doc_vector)
 

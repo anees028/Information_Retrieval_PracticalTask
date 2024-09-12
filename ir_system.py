@@ -103,6 +103,7 @@ class InformationRetrievalSystem(object):
                 search_mode = int(input('Enter choice: '))
                 stop_word_filtering = (search_mode == SEARCH_SW) or (search_mode == SEARCH_SW_STEM)
                 stemming = (search_mode == SEARCH_STEM) or (search_mode == SEARCH_SW_STEM)
+                vsm_status = False
 
                 # Actual query processing begins here:
                 query = input('Query: ')
@@ -113,12 +114,16 @@ class InformationRetrievalSystem(object):
 
                 if isinstance(self.model, models.InvertedListBooleanModel):
                     results = self.inverted_list_search(query, stemming, stop_word_filtering)
+                    vsm_status = False
                 elif isinstance(self.model, models.VectorSpaceModel):
                     results = self.buckley_lewit_search(query, stemming, stop_word_filtering)
+                    vsm_status = True
                 elif isinstance(self.model, models.SignatureBasedBooleanModel):
                     results = self.signature_search(query, stemming, stop_word_filtering)
+                    vsm_status = False
                 else:
                     results = self.basic_query_search(query, stemming, stop_word_filtering)
+                    vsm_status = False
 
                 end_time = time.time()  # End timing
                 processing_time = (end_time - start_time) * 1000  # Convert to milliseconds
@@ -127,9 +132,18 @@ class InformationRetrievalSystem(object):
                 for (score, document) in results:
                     print(f'{score}: {document}')
 
-                # Output of quality metrics:
-                precision = self.calculate_precision(query, results)
-                recall = self.calculate_recall(query, results)
+                if not vsm_status:
+                    precision = self.calculate_precision(query, results, vsm_status)
+                    recall = self.calculate_recall(query, results, vsm_status)
+
+                else:
+                    document_id = []
+                    for i in results:
+                            document_id.append(i[0])
+
+                    precision = self.calculate_precision(query, document_id, vsm_status)
+                    recall = self.calculate_recall(query, document_id, vsm_status)
+                    
                 print()
                 print(f'precision: {precision}')
                 print(f'recall: {recall}')
@@ -268,18 +282,11 @@ class InformationRetrievalSystem(object):
         :return: List of tuples, where the first element is the relevance score and the second the corresponding
         document
         """
-        # TODO: Implement this function (PR04)
-        for doc in self.collection:
-            self.model.add_document(doc, stop_word_filtering, stemming)
+        d = self.model.document_to_representation(self.collection, stop_word_filtering, stemming)
+        q = self.model.query_to_representation(query)
+        match = self.model.match(d,q)
 
-        query_representation = self.model.query_to_representation(query)
-        document_representations = [self.model.document_to_representation(d, stop_word_filtering, stemming)
-                                    for d in self.collection]
-
-        # Calculate scores
-        scores = [self.model.match(dr, query_representation) for dr in document_representations]
-        ranked_collection = sorted(zip(scores, self.collection), key=lambda x: x[0], reverse=True)
-        return ranked_collection[:5]
+        return match
 
     def signature_search(self, query: str, stemming: bool, stop_word_filtering: bool) -> list:
         """
@@ -326,7 +333,7 @@ class InformationRetrievalSystem(object):
                     ground_truth[query_term] = doc_ids
         return ground_truth
 
-    def calculate_precision(self, query: str, result_list: list[tuple]) -> float:
+    def calculate_precision(self, query: str, result_list: list[tuple], vsm_status:bool) -> float:
         # Split and normalize the query
         query_terms = query.lower().split()
 
@@ -335,17 +342,15 @@ class InformationRetrievalSystem(object):
         for term in query_terms:
             relevant_doc_ids.update(self.ground_truth.get(term, set()))
 
-        # Print relevant_doc_ids for debugging
-        print("Relevant Document IDs:", relevant_doc_ids)
-
         if not relevant_doc_ids:
             return -1
 
-        retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+        if not vsm_status:
+            if isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
+                retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+        else:
+            retrieved_doc_ids = {doc_id for doc_id in result_list}
 
-        # Print retrieved_doc_ids for debugging
-        print("Retrieved Document IDs:", retrieved_doc_ids)
-        
         if not retrieved_doc_ids:
             return 0.0
 
@@ -357,7 +362,7 @@ class InformationRetrievalSystem(object):
 
 
 
-    def calculate_recall(self, query: str, result_list: list[tuple]) -> float:
+    def calculate_recall(self, query: str, result_list: list[tuple], vsm_status: bool) -> float:
         query_terms = query.split()
 
         # Collect relevant document IDs based on the query terms
@@ -368,7 +373,12 @@ class InformationRetrievalSystem(object):
         if not relevant_doc_ids:
             return -1
 
-        retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+        if not vsm_status:
+            if isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
+                retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+        else:
+            retrieved_doc_ids = {doc_id for doc_id in result_list}
+            # retrieved_doc_ids = {3,7,18,19,30}
 
         if not retrieved_doc_ids:
             return 0.0

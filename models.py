@@ -1,14 +1,16 @@
 # Contains all retrieval models.
 
 from abc import ABC, abstractmethod
-from collections import defaultdict
+from collections import defaultdict, Counter
 import re
 import math
 import hashlib
 import random
 import bitarray
+import porter
 from document import Document
-
+from collections.abc import Iterable
+from cleanup import remove_stop_words_from_term_list
 
 class RetrievalModel(ABC):
     @abstractmethod
@@ -181,70 +183,138 @@ class SignatureBasedBooleanModel(RetrievalModel):
 
 
 class VectorSpaceModel(RetrievalModel):
-    # TODO: Implement all abstract methods. (PR04)
     def __init__(self):
-        self.inverted_index = defaultdict(lambda: defaultdict(float))
-        self.doc_lengths = defaultdict(float)
-        self.documents = []
-
+        self.index = {}
+        self.term_frequence = {}
+        self.document_term_count = {}
+        self.total_docs = 82
+    
     def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
-        terms = document.terms
-        if stemming:
-            terms = document.stemmed_terms
+        
         if stopword_filtering:
-            terms = document.filtered_terms
+            if isinstance(document, Iterable):
+       
+                for d in document:
+                    d.terms = remove_stop_words_from_term_list(d.terms)          
+ 
 
-        term_freq = defaultdict(int)
-        for term in terms:
-            term_freq[term] += 1
+        if stemming:
+            document = porter.stem_all_documents(document)
 
-        doc_length = 0
-        for term, freq in term_freq.items():
-            tf_idf = self._tf_idf(term, freq, document)
-            self.inverted_index[term][document.document_id] = tf_idf
-            doc_length += tf_idf ** 2
 
-        self.doc_lengths[document.document_id] = math.sqrt(doc_length)
-        return term_freq
+        self.document_term_count = {}
+
+        for i in document:
+            doc_id = i.document_id
+            i.terms = [term.lower() for term in i.terms]
+            terms = i.terms
+            term_counts = Counter(terms)
+            for terms, count in term_counts.items():
+                if terms not in self.index.keys():
+                    self.index[terms] = []
+                self.index[terms].append((doc_id,count))
+        
+        return document
+
+
+
+    def get_term_frequencey(self,term,doc_id):
+
+        doc_term = self.index[term]
+
+        tf = 0
+
+   
+
+        for i in doc_term:
+            if i[0] == doc_id:
+                tf = i[1]
+
+
+        return tf 
+
+
+    def get_overall_term_freq(self,term):
+        
+        tf_overall = 0
+
+        if term in self.index.keys():
+            tf_overall = len(self.index[term])
+           
+            
+
+        return tf_overall
+
+    def calculated_idf(self,term):
+
+        idf = 0
+        ni = self.get_overall_term_freq(term)
+        
+        N = self.total_docs
+        if ni != 0:
+            idf = math.log(N/ni)
+        
+        return idf
+    
+    def calculate_tfidf(self,term,doc_id):
+
+        idf = self.calculated_idf(term)
+        tf = self.get_term_frequencey(term,doc_id)
+
+        tf_idf = tf*idf     
+
+        return tf_idf
+    
+    def compute_document_vector(self, doc_id):
+
+        terms = self.index.keys()
+        vector = {term: self.calculate_tfidf(term, doc_id) for term in terms}
+        return vector
 
     def query_to_representation(self, query: str):
-        term_freq = defaultdict(int)
-        terms = query.lower().split()
-        for term in terms:
-            term_freq[term] += 1
-        return term_freq
 
-    def match(self, document_representation, query_representation) -> float:
-        score = 0
-        query_length = 0
-        doc_id = list(document_representation.keys())[0] if document_representation else None
-        if doc_id is None:
+        query_terms = query.split(' ')
+        query_terms = [term.lower() for term in query_terms]
+        term_counts = Counter(query_terms)
+        query_length = len(query_terms)
+        vector = {term: (count / query_length) * self.calculated_idf(term) for term, count in term_counts.items()}
+     
+        return vector
+    
+
+    def cosine_similarity(self, vec1, vec2):
+
+        dot_product = sum(vec1[term] * vec2.get(term, 0) for term in vec1)
+        norm1 = math.sqrt(sum(v**2 for v in vec1.values()))
+        norm2 = math.sqrt(sum(v**2 for v in vec2.values()))
+        if norm1 == 0 or norm2 == 0:
             return 0.0
+        return dot_product / (norm1 * norm2)
+    
+    def match(self, document_representation, query_representation) -> float:
+        
+        
+        document_scores = {}
 
-        for term, qtf in query_representation.items():
-            doc_tf_idf = self.inverted_index[term].get(doc_id, 0)
-            score += doc_tf_idf * qtf
-            query_length += qtf ** 2
 
-        query_length = math.sqrt(query_length)
-        doc_length = self.doc_lengths.get(doc_id, 1)
 
-        return score / (query_length * doc_length)
+        for i in document_representation:
+            
+            doc_id = i.document_id
+            doc_vector = self.compute_document_vector(doc_id)
+           
+            similarity = self.cosine_similarity(query_representation, doc_vector)
 
-    def _tf_idf(self, term, term_freq, document):
-        # Compute TF-IDF for a term in a document
-        doc_count = len(self.documents)
-        df = len(self.inverted_index[term])
-        idf = math.log((doc_count + 1) / (1 + df)) + 1
-        tf = term_freq
-        return tf * idf
+            if similarity >0:
+                document_scores[doc_id] = round(similarity,3)
+       
+        ranked_docs = sorted(document_scores.items(), key=lambda item: item[1], reverse=True)
+ 
+        
+        return ranked_docs
 
     def __str__(self):
         return 'Vector Space Model'
-
-    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
-        self.documents.append(doc)
-        self.document_to_representation(doc, filter_stopwords, apply_stemming)
 
 
 class FuzzySetModel(RetrievalModel):

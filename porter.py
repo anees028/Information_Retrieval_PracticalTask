@@ -191,7 +191,10 @@ def stem_all_documents(collection: list[Document]):
     :param collection: Document collection to process
     """
     for document in collection:
-        document.stemmed_terms = [stem_term(term) for term in document.terms]
+        stemmed_terms = [stem_term(term) for term in document.terms]
+        document.stemmed_terms = stemmed_terms
+    
+    return collection
 
 
 def stem_query_terms(query: str) -> str:

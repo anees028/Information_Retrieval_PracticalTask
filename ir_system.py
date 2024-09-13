@@ -141,16 +141,16 @@ class InformationRetrievalSystem(object):
                     print(results)
 
                 if not vsm_status:
-                    precision = self.calculate_precision(query, results, vsm_status)
-                    recall = self.calculate_recall(query, results, vsm_status)
+                    precision = self.calculate_precision(query, results, vsm_status, signature_status)
+                    recall = self.calculate_recall(query, results, vsm_status, signature_status)
 
                 else:
                     document_id = []
                     for i in results:
                             document_id.append(i[0])
 
-                    precision = self.calculate_precision(query, document_id, vsm_status)
-                    recall = self.calculate_recall(query, document_id, vsm_status)
+                    precision = self.calculate_precision(query, document_id, vsm_status, signature_status)
+                    recall = self.calculate_recall(query, document_id, vsm_status, signature_status)
                     
                 print()
                 print(f'precision: {precision}')
@@ -329,7 +329,7 @@ class InformationRetrievalSystem(object):
                     ground_truth[query_term] = doc_ids
         return ground_truth
 
-    def calculate_precision(self, query: str, result_list: list[tuple], vsm_status:bool) -> float:
+    def calculate_precision(self, query: str, result_list: list[tuple], vsm_status:bool, signature_status: bool) -> float:
         # Split and normalize the query
         query_terms = query.lower().split()
 
@@ -343,9 +343,11 @@ class InformationRetrievalSystem(object):
         
         retrieved_doc_ids = set()
 
-        if not vsm_status:
+        if not vsm_status and not signature_status:
             if len(result_list)>0 and isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
                 retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+        elif signature_status:
+            retrieved_doc_ids = set(result_list)
         else:
             retrieved_doc_ids = {doc_id for doc_id in result_list}
 
@@ -360,7 +362,7 @@ class InformationRetrievalSystem(object):
 
 
 
-    def calculate_recall(self, query: str, result_list: list[tuple], vsm_status: bool) -> float:
+    def calculate_recall(self, query: str, result_list: list[tuple], vsm_status: bool, signature_status:bool) -> float:
         query_terms = query.split()
 
         # Collect relevant document IDs based on the query terms
@@ -373,13 +375,14 @@ class InformationRetrievalSystem(object):
         
         retrieved_doc_ids = set()
 
-        if not vsm_status:
+        if not vsm_status and not signature_status:
             if len(result_list)>0 and isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
                 retrieved_doc_ids = {doc.document_id for score, doc in result_list}
+        elif signature_status:
+            retrieved_doc_ids = set(result_list)
         else:
             retrieved_doc_ids = {doc_id for doc_id in result_list}
-            # retrieved_doc_ids = {3,7,18,19,30}
-
+           
         if not retrieved_doc_ids:
             return 0.0
         

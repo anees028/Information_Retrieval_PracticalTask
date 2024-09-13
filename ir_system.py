@@ -103,7 +103,6 @@ class InformationRetrievalSystem(object):
                 search_mode = int(input('Enter choice: '))
                 stop_word_filtering = (search_mode == SEARCH_SW) or (search_mode == SEARCH_SW_STEM)
                 stemming = (search_mode == SEARCH_STEM) or (search_mode == SEARCH_SW_STEM)
-                vsm_status = False
 
                 # Actual query processing begins here:
                 query = input('Query: ')
@@ -112,25 +111,34 @@ class InformationRetrievalSystem(object):
 
                 start_time = time.time()  # Start timing
 
+                vsm_status = False
+                signature_status = False
                 if isinstance(self.model, models.InvertedListBooleanModel):
                     results = self.inverted_list_search(query, stemming, stop_word_filtering)
                     vsm_status = False
+                    signature_status = False
                 elif isinstance(self.model, models.VectorSpaceModel):
                     results = self.buckley_lewit_search(query, stemming, stop_word_filtering)
                     vsm_status = True
+                    signature_status = False
                 elif isinstance(self.model, models.SignatureBasedBooleanModel):
                     results = self.signature_search(query, stemming, stop_word_filtering)
                     vsm_status = False
+                    signature_status = True
                 else:
                     results = self.basic_query_search(query, stemming, stop_word_filtering)
                     vsm_status = False
+                    signature_status = False
 
                 end_time = time.time()  # End timing
                 processing_time = (end_time - start_time) * 1000  # Convert to milliseconds
 
                 # Output of results:
-                for (score, document) in results:
-                    print(f'{score}: {document}')
+                if not signature_status:
+                    for (score, document) in results:
+                        print(f'{score}: {document}')
+                else:
+                    print(results)
 
                 if not vsm_status:
                     precision = self.calculate_precision(query, results, vsm_status)
@@ -298,22 +306,10 @@ class InformationRetrievalSystem(object):
         document
         """
         # TODO: Implement this function (PR04)
-        for doc in self.collection:
-            self.model.add_document(doc, stop_word_filtering, stemming)
-
-            # Get query representation
-        query_representation = self.model.query_to_representation(query)
-
-        # Calculate scores
-        scores = []
-        for doc in self.collection:
-            doc_representation = self.model.document_to_representation(doc, stop_word_filtering, stemming)
-            score = self.model.match(doc_representation, query_representation)
-            scores.append((score, doc))
-
-        # Sort and return top results
-        ranked_collection = sorted(scores, key=lambda x: x[0], reverse=True)
-        return ranked_collection[:self.output_k]
+        
+        d = self.model.document_to_representation(self.collection, stop_word_filtering, stemming)
+        match = self.model.match(d,query)
+        return match
 
     def load_ground_truth(self, ground_truth_path: str) -> dict:
         """
@@ -344,9 +340,11 @@ class InformationRetrievalSystem(object):
 
         if not relevant_doc_ids:
             return -1
+        
+        retrieved_doc_ids = set()
 
         if not vsm_status:
-            if isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
+            if len(result_list)>0 and isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
                 retrieved_doc_ids = {doc.document_id for score, doc in result_list}
         else:
             retrieved_doc_ids = {doc_id for doc_id in result_list}
@@ -372,9 +370,11 @@ class InformationRetrievalSystem(object):
 
         if not relevant_doc_ids:
             return -1
+        
+        retrieved_doc_ids = set()
 
         if not vsm_status:
-            if isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
+            if len(result_list)>0 and isinstance(result_list[0], tuple) and len(result_list[0]) == 2:
                 retrieved_doc_ids = {doc.document_id for score, doc in result_list}
         else:
             retrieved_doc_ids = {doc_id for doc_id in result_list}

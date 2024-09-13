@@ -130,56 +130,139 @@ class InvertedListBooleanModel(RetrievalModel):
 
 class SignatureBasedBooleanModel(RetrievalModel):
     # TODO: Implement all abstract methods. (PR04)
-    def __init__(self, F=64, D=4):
-        self.F = F
-        self.D = D
-        self.m = 1000  # Optimal size of the signature vector (you might need to optimize this)
-        self.documents = []
-        self.signatures = []
-        self.hash_functions = [self._create_hash_function() for _ in range(F)]
+    def __init__(self, signature_length=64, num_hash_functions=4,m=20):
+        self.signature_length = signature_length
+        self.num_hash_functions = num_hash_functions
+        self.docs = []
+        self.term_hash = {}
+        
+        self.m=m
 
-    def _create_hash_function(self):
-        """Create a hash function."""
-        return lambda x, seed=random.randint(0, 2 ** 32): int(hashlib.md5((str(seed) + x).encode()).hexdigest(),
-                                                              16) % self.m
+    def _compute_hash(self, term):
+        
+        h= hashlib.md5(term.encode())
+        return int(h.hexdigest(), 16) % self.signature_length
 
-    def document_to_representation(self, document: Document, stopword_filtering=False, stemming=False):
+    def _generate_signature(self, terms):
+        signature = []
+        for i in range(0,len(terms),self.num_hash_functions):
+            four_terms = terms[i:i+self.num_hash_functions]
+            block = [0] * self.signature_length
+            
+            for term in four_terms:
+
+                single_block = [0] * self.signature_length
+
+                hash_value = self._compute_hash(term)
+                random.seed(hash_value)
+                active_bits_indices = random.sample(range(self.signature_length), self.m)
+                
+                for index in active_bits_indices:
+                    single_block[index] = 1
+
+                self.term_hash[term]= single_block
+
+                block = [a | b for a, b in zip(block, single_block)]
+           
+            signature.append(block)
+     
+        return signature
+      
+
+    def document_to_representation(self, document, stopword_filtering=False, stemming=False):
+        
+        signatures = {}
         if stopword_filtering:
-            words = document.filtered_terms
-        else:
-            words = document.terms
+            if isinstance(document, Iterable):
+                for d in document:
+                    d.terms = remove_stop_words_from_term_list(d.terms)       
+  
 
         if stemming:
-            words = document.stemmed_terms
+            document = porter.stem_all_documents(document)
 
-        signature = bitarray.bitarray(self.m)
-        signature.setall(1)
+        for d in document:
+            d.terms = [term.lower() for term in d.terms]
+     
+        
+        for d in document:
+            signature = self._generate_signature(d.terms)
+            signatures[d.document_id] = signature
 
-        for term in words:
-            for i, hash_function in enumerate(self.hash_functions):
-                signature[hash_function(term)] = 0
-
-        return signature
-
-    def query_to_representation(self, query: str):
-        terms = query.lower().split()
-        signature = bitarray.bitarray(self.m)
-        signature.setall(1)
-        for term in terms:
-            for i, hash_function in enumerate(self.hash_functions):
-                signature[hash_function(term)] = 0
-
-        return signature
-
+        return signatures
+    
+    
     def match(self, document_representation, query_representation) -> float:
-        return (document_representation & query_representation).count(0) / self.m
+        
+        tokens = re.split(r'(\(|\)|&|-|\|)', query_representation)
+        tokens = [token.strip() for token in tokens if token.strip()]
+        operators = []
+        stack = []
+
+        doc_ids = []
+
+        query_bits = {}
+
+        bitwise_and = []
+        
+        for token in tokens:
+            if token in ['&','|']:
+                operators.append(token)
+                
+            else:
+                query_signature = self.query_to_representation(token)
+                query_bits[token] = query_signature
+            
+                stack.append(query_bits[token])
+                while len(stack)>1 and operators:
+                    if  '&' in  operators:
+                       
+                        op1 = stack.pop()
+                        op2 = stack.pop()
+                        stack.append([bit1 & bit2 for bit1, bit2 in zip(op1, op2)])
+                     
+                        doc_ids =  self.search(stack[0],document_representation)
+        
+                    if '|' in operators:
+                        op1 = stack.pop()
+                        op2 =stack.pop()
+                        doc_ids1 =  self.search(op1,document_representation)
+                        doc_ids2 =  self.search(op2,document_representation)
+                        doc_ids  = list(set(doc_ids1)|set(doc_ids2))
+        
+        if len(operators) == 0:
+            op = stack.pop()
+            doc_ids = self.search(op,document_representation)
+
+        
+        return doc_ids
+
+    def search(self,query_bits,doc_signature):
+   
+        resultant_docid = []
+        for key, value in doc_signature.items():
+               doc_id = key
+               docs_sig = value
+               for single_block in docs_sig:
+                   
+                   bitwise_and = [query_bits[i] & single_block[i] for i in range(len(query_bits))]
+                   if bitwise_and  == query_bits:
+                      
+                       resultant_docid.append(doc_id)
+                    
+                       break
+        return resultant_docid
+
+    def query_to_representation(self, query):
+        query_hash = []
+       
+        if query in self.term_hash.keys():
+            query_hash= self.term_hash[query]
+
+        return query_hash
 
     def __str__(self):
         return 'Signature-Based Boolean Model'
-
-    def add_document(self, doc: Document, filter_stopwords=False, apply_stemming=False):
-        doc_rep = self.document_to_representation(doc, filter_stopwords, apply_stemming)
-        self.documents.append(doc_rep)
 
 
 class VectorSpaceModel(RetrievalModel):
